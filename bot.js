@@ -6,7 +6,7 @@ require("dotenv").config();
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const CHANNEL = process.env.CHANNEL;
-const SITE = "https://www.anbumiththiran.in/index.html";
+const SITE = "https://www.anbumiththiran.in/category.html?type=poem";
 
 // store last published post
 let lastPost = "";
@@ -19,10 +19,21 @@ async function getLatestPost() {
     const { data } = await axios.get(SITE);
     const $ = cheerio.load(data);
 
-    const link = $('a[href*="post.html?id="]').first().attr("href");
+    // Adjusted selector: find first poem link
+    const link = $("a")
+      .filter((i, el) => {
+        const href = $(el).attr("href");
+        return href && (href.includes("post.html") || href.includes("category.html?type=poem&id="));
+      })
+      .first()
+      .attr("href");
+
     if (!link) return null;
 
-    return "https://www.anbumiththiran.in/" + link;
+    // Normalize link
+    return link.startsWith("http")
+      ? link
+      : "https://www.anbumiththiran.in/" + link.replace(/^\//, "");
   } catch (err) {
     console.error("Error fetching site:", err.message);
     return null;
