@@ -10,22 +10,39 @@ const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 const topics = [
-    'Vijay Tamil Nadu politics',
-    'PM Modi'
+    'Vijay politics Tamil Nadu',
+    'Narendra Modi India'
 ];
 
 async function fetchNews(query) {
 
     try {
 
-        const today = new Date().toISOString().split('T')[0];
+        // Last 7 days news
+        const date = new Date();
+        date.setDate(date.getDate() - 7);
+
+        const fromDate = date.toISOString().split('T')[0];
 
         const url =
-            `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&from=${today}&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`;
+            `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5&from=${fromDate}&apiKey=${NEWS_API_KEY}`;
 
         const response = await axios.get(url);
 
-        return response.data.articles || [];
+        let articles = response.data.articles || [];
+
+        // fallback search
+        if (articles.length === 0) {
+
+            const fallbackUrl =
+                `https://newsapi.org/v2/top-headlines?country=in&pageSize=5&apiKey=${NEWS_API_KEY}`;
+
+            const fallbackResponse = await axios.get(fallbackUrl);
+
+            articles = fallbackResponse.data.articles || [];
+        }
+
+        return articles;
 
     } catch (error) {
 
@@ -72,7 +89,7 @@ async function sendDailyNews(chatId) {
                     `<b>${index + 1}. ${escapeHTML(article.title)}</b>\n`;
 
                 finalMessage +=
-                    `${escapeHTML(article.source.name)}\n`;
+                    `📰 ${escapeHTML(article.source.name)}\n`;
 
                 if (article.url) {
                     finalMessage += `${article.url}\n`;
@@ -113,7 +130,7 @@ bot.onText(/\/news/, async (msg) => {
     await sendDailyNews(msg.chat.id);
 });
 
-// Runs every day at 8:00 AM IST
+// Daily 8 AM IST
 cron.schedule(
     '0 8 * * *',
     async () => {
