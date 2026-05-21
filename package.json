@@ -1,4 +1,4 @@
-```json id="cbvc5w"
+```json id="0f0v5u"
 {
   "name": "telegram-news-bot",
   "version": "1.0.0",
@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "axios": "^1.7.2",
-    "dotenv": "^16.4.5",
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.66.0"
   }
