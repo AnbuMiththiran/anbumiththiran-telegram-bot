@@ -1,95 +1,89 @@
-const TelegramBot = require("node-telegram-bot-api");
-const axios = require("axios");
-const cheerio = require("cheerio");
-require("dotenv").config();
+import TelegramBot from 'node-telegram-bot-api';
+import axios from 'axios';
+import cron from 'node-cron';
+import dotenv from 'dotenv';
 
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+dotenv.config();
 
-const CHANNEL = process.env.CHANNEL;
-const SITE = "https://www.anbumiththiran.in/index.html";
+const TOKEN = process.env.BOT_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
-// store last published post
-let lastPost = "";
+const bot = new TelegramBot(TOKEN, { polling: true });
 
-/* =========================
-   GET LATEST POST FROM SITE
-========================= */
-async function getLatestPost() {
-  try {
-    const { data } = await axios.get(SITE);
-    const $ = cheerio.load(data);
+async function fetchNews(query) {
+    try {
+        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`;
 
-    // Grab the first link that points to a post
-    const link = $("a[href*='post.html'], a[href*='category.html?type=poem&id=']")
-      .first()
-      .attr("href");
+        const response = await axios.get(url);
 
-    if (!link) {
-      console.log("No matching post link found");
-      return null;
+        return response.data.articles || [];
+    } catch (error) {
+        console.error(`Error fetching news for ${query}:`, error.message);
+        return [];
     }
-
-    return link.startsWith("http")
-      ? link
-      : "https://www.anbumiththiran.in/" + link.replace(/^\//, "");
-  } catch (err) {
-    console.error("Error fetching site:", err.message);
-    return null;
-  }
 }
 
-/* =========================
-   COMMAND: /postnow
-========================= */
-bot.onText(/\/postnow/, async (msg) => {
-  const chatId = msg.chat.id;
-  const post = await getLatestPost();
+async function sendDailyNews() {
+    try {
+        const topics = [
+            "Vijay Tamil Nadu politics",
+            "PM Modi"
+        ];
 
-  if (!post) {
-    return bot.sendMessage(chatId, "❌ No post found");
-  }
+        let finalMessage = `📰 *Daily Political News Update*\n\n`;
 
-  if (post === lastPost) {
-    return bot.sendMessage(chatId, "ℹ️ Already posted this link");
-  }
+        for (const topic of topics) {
+            const news = await fetchNews(topic);
 
-  await bot.sendMessage(CHANNEL, `🆕 New Post\n\n${post}`);
-  lastPost = post;
+            finalMessage += `━━━━━━━━━━━━━━\n`;
+            finalMessage += `🔍 *${topic}*\n\n`;
 
-  bot.sendMessage(chatId, "✅ Posted to channel");
-});
+            if (news.length === 0) {
+                finalMessage += `No news found.\n\n`;
+                continue;
+            }
 
-/* =========================
-   COMMAND: /latest
-========================= */
-bot.onText(/\/latest/, async (msg) => {
-  const chatId = msg.chat.id;
-  const post = await getLatestPost();
+            news.forEach((article, index) => {
+                finalMessage += `*${index + 1}. ${article.title}*\n`;
+                finalMessage += `${article.source.name}\n`;
 
-  if (!post) {
-    return bot.sendMessage(chatId, "❌ No post found");
-  }
+                if (article.url) {
+                    finalMessage += `${article.url}\n`;
+                }
 
-  bot.sendMessage(chatId, `📌 Latest Post:\n\n${post}`);
-});
+                finalMessage += `\n`;
+            });
+        }
 
-/* =========================
-   AUTO CHECK EVERY 1 MIN
-========================= */
-setInterval(async () => {
-  try {
-    const post = await getLatestPost();
+        await bot.sendMessage(CHAT_ID, finalMessage, {
+            parse_mode: 'Markdown'
+        });
 
-    if (post && post !== lastPost) {
-      lastPost = post;
-      await bot.sendMessage(CHANNEL, `🆕 Auto New Post\n\n${post}`);
-      console.log("Posted:", post);
-    } else {
-      console.log("No new post found");
+        console.log("Daily news sent successfully.");
+
+    } catch (error) {
+        console.error("Error sending daily news:", error.message);
     }
-  } catch (err) {
-    console.error("Auto-check error:", err.message);
-  }
-}, 60000);
+}
 
-console.log("Bot running...");
+bot.onText(/\/start/, (msg) => {
+    bot.sendMessage(
+        msg.chat.id,
+        `✅ CM Vijay & PM Modi News Bot Started.\n\nYou will receive daily news updates automatically.`
+    );
+});
+
+bot.onText(/\/news/, async (msg) => {
+    bot.sendMessage(msg.chat.id, "Fetching latest news...");
+
+    await sendDailyNews();
+});
+
+// Daily at 8:00 AM
+cron.schedule('0 8 * * *', async () => {
+    console.log("Running scheduled news fetch...");
+    await sendDailyNews();
+});
+
+console.log("Bot is running...");
