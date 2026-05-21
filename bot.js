@@ -1,4 +1,4 @@
-```js id="r7xwov"
+
 import TelegramBot from 'node-telegram-bot-api';
 import axios from 'axios';
 import cron from 'node-cron';
@@ -129,4 +129,3 @@ cron.schedule(
 );
 
 console.log('Bot is running...');
-```
