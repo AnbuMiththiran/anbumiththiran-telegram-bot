@@ -1,7 +1,8 @@
+```json id="cbvc5w"
 {
-  "name": "cm-vijay-modi-news-bot",
+  "name": "telegram-news-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for daily CM Vijay and PM Modi news",
+  "description": "Telegram Political News Bot",
   "main": "bot.js",
   "type": "module",
   "scripts": {
@@ -14,3 +15,4 @@
     "node-telegram-bot-api": "^0.66.0"
   }
 }
+```
