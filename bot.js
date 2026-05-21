@@ -9,19 +9,20 @@ const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// 🔥 More accurate current affairs topics
 const topics = [
-    'Vijay politics Tamil Nadu',
-    'Narendra Modi India'
+    'Narendra Modi India latest news',
+    'PM Modi government India update',
+    'Tamil Nadu CM Vijay latest news',
+    'Joseph Vijay Tamil Nadu politics',
+    'Tamil Nadu government updates'
 ];
 
+// 📡 Fetch news with better time range + fallback
 async function fetchNews(query) {
-
     try {
-
-        // Last 7 days news
         const date = new Date();
-        date.setDate(date.getDate() - 7);
-
+        date.setDate(date.getDate() - 2); // last 2 days (better than 7 for freshness)
         const fromDate = date.toISOString().split('T')[0];
 
         const url =
@@ -31,118 +32,95 @@ async function fetchNews(query) {
 
         let articles = response.data.articles || [];
 
-        // fallback search
+        // fallback if empty
         if (articles.length === 0) {
+            const fallback = await axios.get(
+                `https://newsapi.org/v2/top-headlines?country=in&pageSize=5&apiKey=${NEWS_API_KEY}`
+            );
 
-            const fallbackUrl =
-                `https://newsapi.org/v2/top-headlines?country=in&pageSize=5&apiKey=${NEWS_API_KEY}`;
-
-            const fallbackResponse = await axios.get(fallbackUrl);
-
-            articles = fallbackResponse.data.articles || [];
+            articles = fallback.data.articles || [];
         }
 
         return articles;
 
-    } catch (error) {
-
-        console.error(`Error fetching news for ${query}:`, error.message);
-
+    } catch (err) {
+        console.error("Fetch error:", err.message);
         return [];
     }
 }
 
-function escapeHTML(text) {
-
-    if (!text) return '';
-
+// 🧼 clean text for Telegram
+function clean(text = '') {
     return text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 }
 
-async function sendDailyNews(chatId) {
-
+// 📰 send news function
+async function sendNews(chatId) {
     try {
-
-        let finalMessage =
-            `📰 <b>Daily Political News Update</b>\n\n`;
+        let msg = `📰 <b>Hourly Current Affairs Update</b>\n\n`;
 
         for (const topic of topics) {
 
             const news = await fetchNews(topic);
 
-            finalMessage += `━━━━━━━━━━━━━━\n`;
-            finalMessage += `🔍 <b>${escapeHTML(topic)}</b>\n\n`;
+            msg += `━━━━━━━━━━━━━━\n`;
+            msg += `🔍 <b>${clean(topic)}</b>\n\n`;
 
-            if (news.length === 0) {
-
-                finalMessage += `No news found.\n\n`;
-
+            if (!news.length) {
+                msg += `No recent updates found.\n\n`;
                 continue;
             }
 
-            news.forEach((article, index) => {
+            news.forEach((a, i) => {
+                msg += `<b>${i + 1}. ${clean(a.title)}</b>\n`;
+                msg += `📰 ${clean(a.source.name)}\n`;
 
-                finalMessage +=
-                    `<b>${index + 1}. ${escapeHTML(article.title)}</b>\n`;
+                if (a.url) msg += `${a.url}\n`;
 
-                finalMessage +=
-                    `📰 ${escapeHTML(article.source.name)}\n`;
-
-                if (article.url) {
-                    finalMessage += `${article.url}\n`;
-                }
-
-                finalMessage += `\n`;
+                msg += `\n`;
             });
         }
 
-        await bot.sendMessage(chatId, finalMessage, {
+        await bot.sendMessage(chatId, msg, {
             parse_mode: 'HTML',
-            disable_web_page_preview: false
+            disable_web_page_preview: true
         });
 
-        console.log('News sent successfully.');
+        console.log("Hourly news sent");
 
-    } catch (error) {
-
-        console.error('Error sending news:', error.message);
+    } catch (err) {
+        console.error("Send error:", err.message);
     }
 }
 
-bot.onText(/\/start/, (msg) => {
+// 🚀 manual command
+bot.onText(/\/news/, async (msg) => {
+    await bot.sendMessage(msg.chat.id, "Fetching latest current affairs...");
+    await sendNews(msg.chat.id);
+});
 
+// 🟢 start command
+bot.onText(/\/start/, (msg) => {
     bot.sendMessage(
         msg.chat.id,
-        `✅ Political News Bot Started.\n\nUse /news to get latest updates.`
+        "✅ News Bot Started!\n\nYou will receive hourly updates on PM Modi & CM Vijay current affairs."
     );
 });
 
-bot.onText(/\/news/, async (msg) => {
-
-    await bot.sendMessage(
-        msg.chat.id,
-        'Fetching latest news...'
-    );
-
-    await sendDailyNews(msg.chat.id);
-});
-
-// Daily 8 AM IST
+// ⏰ EVERY 1 HOUR AUTO RUN
 cron.schedule(
-    '0 8 * * *',
+    '0 * * * *',
     async () => {
-
-        console.log('Running scheduled news update...');
-
-        await sendDailyNews(CHAT_ID);
-
+        console.log("Running hourly update...");
+        await sendNews(CHAT_ID);
     },
     {
-        timezone: 'Asia/Kolkata'
+        timezone: "Asia/Kolkata"
     }
 );
 
-console.log('Bot is running...');
+console.log("Bot running... hourly updates enabled");
+```
